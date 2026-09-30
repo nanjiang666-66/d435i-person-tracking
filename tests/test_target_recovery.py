@@ -51,6 +51,7 @@ class TargetRecoveryTests(unittest.TestCase):
         recovery = self.make_recovery()
         self.assertFalse(recovery.depth_is_plausible(3.0, 0.1))
         self.assertFalse(recovery.depth_is_plausible(3.0, 1.5))
+        self.assertFalse(recovery.depth_is_plausible(1.3, 0.05))
         self.assertTrue(recovery.depth_is_plausible(1.1, 0.1))
 
 

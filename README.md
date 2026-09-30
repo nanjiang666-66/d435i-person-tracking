@@ -1,5 +1,7 @@
 # D435i 人体跟踪与测距
 
+2026-09-30 深度修正：当人物向左后方仰头，旧版框内偏上区域的中位数可能落到背景，导致约 0.8–0.9 m 跳到约 1.3 m。当前改用下半部中央的躯干区域、至少 20% 有效像素支持的近处深度簇，并收紧连续帧突跳阈值。见下文“深度跳变复测”；单靠屏幕录制尚不能验证原始深度图。
+
 本目录是 ROS 2 Humble 的 `ament_python` 包 `person_vision`。它在 CPU 上使用预训练 YOLO26n 检测人，用 ByteTrack 维护画面内的临时目标 ID，并用 D435i 对齐深度图估计目标在相机光学坐标系中的位置。控制节点以后用 C++ 编写，通过 ROS 2 话题读取结果。本阶段不会发 `/cmd_vel`。
 
 ## 运行要求
@@ -50,6 +52,25 @@ ros2 pkg executables person_vision
 最后一条应列出 `person_vision person_tracker`。源码更新后，在包目录运行 `git pull` 并重新运行 `colcon build`。若权重下载失败，可手动将权重文件放到指定路径。权重来自 [Ultralytics 官方资源](https://github.com/ultralytics/assets/releases/tag/v8.4.0)。
 
 短时恢复逻辑更新后，可在工作空间目录运行 `python -m unittest discover -s src/person_vision/tests -v`；这验证匹配规则，真实相机效果仍需按第 3、4 节现场测试。
+
+### 从 VMware 共享目录更新已有工作空间
+
+若 Ubuntu 工作空间已有此包，只同步运行代码和测试，不要复制整个目录里的 `.git`：
+
+```bash
+cp -a /mnt/hgfs/ubuntu-workspace/d435i_person_tracking/person_vision/. \
+  ~/person_vision_ws/src/person_vision/person_vision/
+cp -a /mnt/hgfs/ubuntu-workspace/d435i_person_tracking/tests/. \
+  ~/person_vision_ws/src/person_vision/tests/
+cd ~/person_vision_ws
+source /opt/ros/humble/setup.bash
+source ~/d435i_vision_venv/bin/activate
+colcon build --symlink-install --packages-select person_vision
+source install/setup.bash
+python -m unittest discover -s src/person_vision/tests -v
+```
+
+如果代码已推送到 GitHub，也可在干净的 Ubuntu 源码仓库中使用 `git pull` 更新；不要在同一次更新中同时使用共享目录复制和 `git pull`。
 
 ## 3 启动相机和识别包
 
@@ -118,6 +139,10 @@ ros2 run person_vision person_tracker --ros-args \
 新版本在选中 ID 首次丢失时打印 `Selected ID ... missing` 和当时画面中的其他 ID；同一 ID 接回时打印 `restored after ... s`；自动认回新 ID 时打印 `Auto reacquired ...`；人工重选后打印 `Target ID changed from ... to ... after ...s missing`。短视频（包含绿框、蓝框、左上角 FPS）和这些终端日志，比只看 `/person/visible` 更容易区分检测丢失与跟踪关联丢失。
 
 ## 4 用命令检查效果
+
+### 深度跳变复测
+
+选中目标，先坐正，再向左后方仰头，保持人与相机的实际距离基本不变。在另一个已 `source` ROS 2 环境的终端运行 `ros2 topic echo /person/target_point --field point.z`。重点观察深度是否仍从约 0.8–0.9 m 稳定跳到约 1.3 m。改为测躯干后，数值可能与原先测头部的读数略有不同；如果深度不足或突变被拒绝，程序应暂时发布 `/person/visible=false`，而不是输出错误的背景距离。此修正已通过模拟深度图测试，但真实 D435i 效果仍需复测；如果问题持续，需要检查原始对齐深度图。
 
 另开终端并运行：
 

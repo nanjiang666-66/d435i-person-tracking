@@ -17,31 +17,8 @@ from sensor_msgs.msg import CameraInfo, Image
 from std_msgs.msg import Bool, Int32
 from ultralytics import YOLO
 
+from person_vision.depth_estimation import distance_in_box
 from person_vision.target_recovery import TargetRecovery
-
-
-def distance_in_box(depth, encoding, box, depth_scale):
-    """Median valid torso-region depth in metres; None if no usable pixels."""
-    x1, y1, x2, y2 = (int(v) for v in box)
-    width, height = x2 - x1, y2 - y1
-    if width <= 0 or height <= 0:
-        return None
-
-    # The centre of a person box tends to contain fewer background pixels.
-    left = max(0, x1 + int(width * 0.3))
-    right = min(depth.shape[1], x1 + int(width * 0.7))
-    top = max(0, y1 + int(height * 0.2))
-    bottom = min(depth.shape[0], y1 + int(height * 0.65))
-    if left >= right or top >= bottom:
-        return None
-
-    pixels = depth[top:bottom, left:right].astype(np.float32)
-    if encoding == "16UC1":
-        pixels *= depth_scale
-    elif encoding != "32FC1":
-        return None
-    valid = pixels[np.isfinite(pixels) & (pixels >= 0.2) & (pixels <= 8.0)]
-    return float(np.median(valid)) if valid.size >= 20 else None
 
 
 class PersonTracker(Node):
