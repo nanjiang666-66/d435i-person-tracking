@@ -177,4 +177,3 @@ ros2 param set /d435i_person_tracker target_id -1
 - [YOLO26 预训练检测模型](https://docs.ultralytics.com/models/yolo26)
 - [Ultralytics 视频跟踪](https://docs.ultralytics.com/modes/track)
 - [OpenVINO CPU 部署](https://docs.ultralytics.com/integrations/openvino)
-

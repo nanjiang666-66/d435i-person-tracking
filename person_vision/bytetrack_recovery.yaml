@@ -1,0 +1,10 @@
+# Start with the Ultralytics ByteTrack defaults, retaining lost tracks longer.
+# At 25 processed frames/s, 75 frames is about 3 seconds of occlusion.
+# A longer buffer can increase the chance of attaching the wrong person.
+tracker_type: bytetrack
+track_high_thresh: 0.25
+track_low_thresh: 0.1
+new_track_thresh: 0.25
+track_buffer: 75
+match_thresh: 0.8
+fuse_score: True
