@@ -60,7 +60,7 @@ class TargetRecovery:
         if self.last_depth is None:
             return True
         elapsed = max(0.0, now - self.last_depth_time)
-        return abs(depth - self.last_depth) <= min(0.55, 0.15 + 1.5 * elapsed)
+        return abs(depth - self.last_depth) <= min(0.30, 0.15 + 1.5 * elapsed)
 
     def record_selected(self, frame, box, depth, other_ids, now):
         self.last_seen = now

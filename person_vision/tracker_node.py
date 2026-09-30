@@ -257,7 +257,8 @@ class PersonTracker(Node):
         depth_jump = False
         if selected_present:
             measured_depth = distance_in_box(
-                depth, depth_msg.encoding, selected_box, self.depth_scale
+                depth, depth_msg.encoding, selected_box, self.depth_scale,
+                reference_depth=self.recovery.last_depth,
             )
             if measured_depth is not None:
                 if self.recovery.depth_is_plausible(measured_depth, now):
@@ -347,7 +348,7 @@ class PersonTracker(Node):
                         label += f"  {distance:.2f} m"
                         visible = True
                 else:
-                    label += "  depth jump" if depth_jump else "  no valid depth"
+                    label += "  depth jump" if depth_jump else "  no reliable depth"
             if self.show_window:
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(

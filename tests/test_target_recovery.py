@@ -52,7 +52,14 @@ class TargetRecoveryTests(unittest.TestCase):
         self.assertFalse(recovery.depth_is_plausible(3.0, 0.1))
         self.assertFalse(recovery.depth_is_plausible(3.0, 1.5))
         self.assertFalse(recovery.depth_is_plausible(1.3, 0.05))
+        self.assertFalse(recovery.depth_is_plausible(0.59, 1.0))
         self.assertTrue(recovery.depth_is_plausible(1.1, 0.1))
+
+    def test_gradual_forward_motion_stays_valid(self):
+        recovery = self.make_recovery()
+        for now, depth in ((0.1, 0.90), (0.2, 0.82), (0.3, 0.74)):
+            self.assertTrue(recovery.depth_is_plausible(depth, now))
+            recovery.record_selected(self.frame, self.old_box, depth, (), now)
 
 
 if __name__ == "__main__":

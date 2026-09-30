@@ -28,6 +28,16 @@ class DepthEstimationTests(unittest.TestCase):
         depth[40:85, 45:50] = 0.83
         self.assertAlmostEqual(distance_in_box(depth, "32FC1", (0, 0, 100, 100), 0.001), 0.87, places=2)
 
+    def test_chest_occluder_does_not_replace_locked_person(self):
+        depth = np.full((100, 100), 980, dtype=np.uint16)
+        # Occluder is the majority, but enough torso pixels remain visible.
+        depth[40:85, 25:58] = 590
+        self.assertAlmostEqual(distance_in_box(depth, "16UC1", (0, 0, 100, 100), 0.001, reference_depth=0.98), 0.98, places=2)
+
+    def test_full_occlusion_has_no_trusted_depth(self):
+        depth = np.full((100, 100), 590, dtype=np.uint16)
+        self.assertIsNone(distance_in_box(depth, "16UC1", (0, 0, 100, 100), 0.001, reference_depth=0.98))
+
 
 if __name__ == "__main__":
     unittest.main()
