@@ -267,13 +267,15 @@ class PersonTracker(Node):
                     depth_jump = True
             self.recovery.record_selected(
                 frame, selected_box, selected_depth,
-                [track_id for track_id, _ in self.boxes if track_id != selected_id],
+                [(track_id, box, self.confidence_by_id[track_id])
+                 for track_id, box in self.boxes if track_id != selected_id],
                 now,
             )
         elif selected_id >= 0 and self.auto_reacquire:
             candidates = [
                 (track_id, box, distance_in_box(
-                    depth, depth_msg.encoding, box, self.depth_scale
+                    depth, depth_msg.encoding, box, self.depth_scale,
+                    reference_depth=self.recovery.last_depth,
                 ))
                 for track_id, box in self.boxes
                 if self.confidence_by_id[track_id] >= 0.4
@@ -298,7 +300,8 @@ class PersonTracker(Node):
                 self.recovery.reset()
                 self.recovery.record_selected(
                     frame, selected_box, selected_depth,
-                    [track_id for track_id, _ in self.boxes if track_id != new_id],
+                    [(track_id, box, self.confidence_by_id[track_id])
+                     for track_id, box in self.boxes if track_id != new_id],
                     now,
                 )
                 self.get_logger().info(

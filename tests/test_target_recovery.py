@@ -25,7 +25,44 @@ class TargetRecoveryTests(unittest.TestCase):
         self.assertEqual(recovery.find_match(self.frame, candidate, 0.4)[0], 17)
 
     def test_person_already_present_is_not_selected(self):
-        recovery = self.make_recovery(others=(9,))
+        recovery = self.make_recovery(others=((9, (110, 20, 170, 100), 0.9),))
+        candidate = [(9, (25, 20, 75, 100), 1.0)]
+        for now in (0.3, 0.35, 0.4):
+            self.assertIsNone(recovery.find_match(self.frame, candidate, now))
+
+    def test_weak_overlapping_duplicate_can_take_over_target(self):
+        recovery = self.make_recovery(
+            others=((9, (55, 20, 110, 100), 0.34),)
+        )
+        candidate = [(9, (25, 20, 75, 100), 1.02)]
+        self.assertIsNone(recovery.find_match(self.frame, candidate, 0.3))
+        self.assertIsNone(recovery.find_match(self.frame, candidate, 0.35))
+        self.assertEqual(recovery.find_match(self.frame, candidate, 0.4)[0], 9)
+
+    def test_weak_separate_detection_cannot_take_over_target(self):
+        recovery = self.make_recovery(
+            others=((9, (110, 20, 170, 100), 0.34),)
+        )
+        candidate = [(9, (25, 20, 75, 100), 1.0)]
+        for now in (0.3, 0.35, 0.4):
+            self.assertIsNone(recovery.find_match(self.frame, candidate, now))
+
+    def test_strong_overlapping_detection_cannot_take_over_target(self):
+        recovery = self.make_recovery(
+            others=((9, (55, 20, 110, 100), 0.85),)
+        )
+        candidate = [(9, (25, 20, 75, 100), 1.0)]
+        for now in (0.3, 0.35, 0.4):
+            self.assertIsNone(recovery.find_match(self.frame, candidate, now))
+
+    def test_duplicate_that_moves_away_is_not_reacquired(self):
+        recovery = self.make_recovery(
+            others=((9, (55, 20, 110, 100), 0.34),)
+        )
+        recovery.record_selected(
+            self.frame, self.old_box, 1.0,
+            ((9, (120, 20, 170, 100), 0.9),), 0.1,
+        )
         candidate = [(9, (25, 20, 75, 100), 1.0)]
         for now in (0.3, 0.35, 0.4):
             self.assertIsNone(recovery.find_match(self.frame, candidate, now))
