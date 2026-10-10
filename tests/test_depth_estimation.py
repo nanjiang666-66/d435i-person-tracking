@@ -38,6 +38,14 @@ class DepthEstimationTests(unittest.TestCase):
         depth = np.full((100, 100), 590, dtype=np.uint16)
         self.assertIsNone(distance_in_box(depth, "16UC1", (0, 0, 100, 100), 0.001, reference_depth=0.98))
 
+    def test_relock_requires_enough_torso_pixels(self):
+        depth = np.zeros((100, 100), dtype=np.uint16)
+        depth[40:50, 25:75] = 1400
+        self.assertIsNone(distance_in_box(
+            depth, "16UC1", (0, 0, 100, 100), 0.001,
+            min_roi_support=0.35,
+        ))
+
 
 if __name__ == "__main__":
     unittest.main()

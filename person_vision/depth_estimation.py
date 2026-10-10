@@ -3,7 +3,9 @@
 import numpy as np
 
 
-def distance_in_box(depth, encoding, box, depth_scale, reference_depth=None):
+def distance_in_box(
+    depth, encoding, box, depth_scale, reference_depth=None, min_roi_support=0.0,
+):
     """Return a supported torso range in metres, or None if unavailable.
 
     The lower middle of a person box is more likely to contain the torso when
@@ -50,7 +52,7 @@ def distance_in_box(depth, encoding, box, depth_scale, reference_depth=None):
         peak = int(group[np.argmax(counts[group])])
         centre = (edges[peak] + edges[peak + 1]) / 2.0
         cluster = valid[(valid >= centre - 0.125) & (valid <= centre + 0.125)]
-        if cluster.size >= threshold:
+        if cluster.size >= threshold and cluster.size >= pixels.size * min_roi_support:
             depths.append(float(np.median(cluster)))
     if not depths:
         return None

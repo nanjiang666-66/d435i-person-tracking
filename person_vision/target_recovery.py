@@ -66,6 +66,64 @@ class TargetRecovery:
         self.last_depth_time = None
         self.other_ids = {}
         self.candidate_counts = {}
+        self.candidate_depth_runs = {}
+        self.pending_depth = None
+        self.pending_depth_count = 0
+        self.depth_recovery_diagnostics = None
+
+    def relock_depth(self, frame, box, depth, confidence, now):
+        """Accept a farther range only after the same visible person supports it."""
+        similarity = appearance_similarity(
+            self.signature, appearance_signature(frame, box)
+        )
+        elapsed = (
+            max(0.0, now - self.last_depth_time)
+            if self.last_depth_time is not None else 0.0
+        )
+        plausible_change = min(1.0, max(0.35, elapsed))
+        # Report the first failed gate without changing the acceptance rules.
+        # These values distinguish appearance rejection from a depth problem.
+        reason = None
+        if depth is None:
+            reason = "no_supported_depth"
+        elif self.last_depth is None:
+            reason = "no_reference_depth"
+        elif confidence < 0.75:
+            reason = "low_detection_confidence"
+        elif similarity < 0.82:
+            reason = "appearance_mismatch"
+        elif depth - self.last_depth <= 0.30:
+            reason = "not_farther_than_reference"
+        elif depth - self.last_depth > plausible_change:
+            reason = "beyond_range_limit"
+        self.depth_recovery_diagnostics = {
+            "reason": reason or "waiting_stable_depth",
+            "candidate": depth,
+            "reference": self.last_depth,
+            "confidence": confidence,
+            "appearance": similarity,
+            "range_limit": plausible_change,
+            "stable_frames": 0,
+        }
+        if reason is not None:
+            self.pending_depth = None
+            self.pending_depth_count = 0
+            return None
+
+        if self.pending_depth is None or abs(depth - self.pending_depth) > 0.08:
+            self.pending_depth = depth
+            self.pending_depth_count = 1
+        else:
+            self.pending_depth = 0.8 * self.pending_depth + 0.2 * depth
+            self.pending_depth_count += 1
+        self.depth_recovery_diagnostics["stable_frames"] = self.pending_depth_count
+        if self.pending_depth_count < 5:
+            return None
+        self.depth_recovery_diagnostics["reason"] = "accepted"
+        confirmed = self.pending_depth
+        self.pending_depth = None
+        self.pending_depth_count = 0
+        return confirmed
 
     def depth_is_plausible(self, depth, now):
         if depth is None:
@@ -79,6 +137,7 @@ class TargetRecovery:
         self.last_seen = now
         self.last_box = tuple(float(value) for value in box)
         self.candidate_counts.clear()
+        self.candidate_depth_runs.clear()
         self.other_ids = {
             track_id: state for track_id, state in self.other_ids.items()
             if now - state[0] <= self.max_gap + 1.0
@@ -97,6 +156,8 @@ class TargetRecovery:
             self.other_ids[track_id] = (now, duplicate)
         if depth is None:
             return
+        self.pending_depth = None
+        self.pending_depth_count = 0
         current = appearance_signature(frame, box)
         if current is not None and (
             self.signature is None
@@ -124,6 +185,14 @@ class TargetRecovery:
             track_id: self.candidate_counts.get(track_id, 0) + 1
             for track_id, _box, _depth in candidates
         }
+        next_depth_runs = {}
+        for track_id, _box, depth in candidates:
+            if depth is None:
+                continue
+            previous = self.candidate_depth_runs.get(track_id)
+            run = previous[1] + 1 if previous and abs(depth - previous[0]) <= 0.08 else 1
+            next_depth_runs[track_id] = (depth, run)
+        self.candidate_depth_runs = next_depth_runs
         if gap < self.min_gap:
             return None
 
@@ -147,21 +216,34 @@ class TargetRecovery:
             similarity = appearance_similarity(
                 self.signature, appearance_signature(frame, box)
             )
-            if similarity < 0.72:
+            shifted_depth = depth_change > 0.30
+            # A closer shifted range is commonly the foreground occluder.
+            if shifted_depth and depth < self.last_depth:
+                continue
+            if similarity < (0.82 if shifted_depth else 0.72):
                 continue
             position_score = 1.0 - (dx / max_dx + dy / max_dy) / 2.0
             depth_score = 1.0 - depth_change / max_depth_change
-            score = 0.6 * similarity + 0.2 * position_score + 0.2 * depth_score
-            scores.append((score, track_id, similarity))
+            score = (
+                0.7 * similarity + 0.2 * position_score + 0.1 * depth_score
+                if shifted_depth else
+                0.6 * similarity + 0.2 * position_score + 0.2 * depth_score
+            )
+            scores.append((score, track_id, similarity, shifted_depth))
 
         if not scores:
             return None
         scores.sort(reverse=True)
-        best_score, best_id, best_similarity = scores[0]
+        best_score, best_id, best_similarity, shifted_depth = scores[0]
         prior_track = self.other_ids.get(best_id)
         if prior_track is not None and not prior_track[1]:
             return None
-        if self.candidate_counts[best_id] < self.stable_frames:
+        stable_count = (
+            self.candidate_depth_runs[best_id][1]
+            if shifted_depth else self.candidate_counts[best_id]
+        )
+        required_frames = max(self.stable_frames, 5) if shifted_depth else self.stable_frames
+        if stable_count < required_frames:
             return None
         if best_score < 0.75:
             return None

@@ -98,6 +98,51 @@ class TargetRecoveryTests(unittest.TestCase):
             self.assertTrue(recovery.depth_is_plausible(depth, now))
             recovery.record_selected(self.frame, self.old_box, depth, (), now)
 
+    def test_farther_range_relocks_after_stable_visible_person(self):
+        recovery = self.make_recovery()
+        for index in range(4):
+            self.assertIsNone(recovery.relock_depth(
+                self.frame, self.old_box, 1.42, 0.9, 0.6 + index * 0.05,
+            ))
+        self.assertAlmostEqual(recovery.relock_depth(
+            self.frame, self.old_box, 1.42, 0.9, 0.8,
+        ), 1.42, places=2)
+
+    def test_foreground_occluder_and_changed_appearance_do_not_relock(self):
+        recovery = self.make_recovery()
+        for index in range(8):
+            self.assertIsNone(recovery.relock_depth(
+                self.frame, self.old_box, 0.6, 0.9, 0.6 + index * 0.05,
+            ))
+        blank_frame = np.zeros_like(self.frame)
+        for index in range(8):
+            self.assertIsNone(recovery.relock_depth(
+                blank_frame, self.old_box, 1.42, 0.9, 1.0 + index * 0.05,
+            ))
+
+    def test_new_id_with_farther_stable_depth_can_reacquire(self):
+        recovery = self.make_recovery()
+        candidate = [(17, (25, 20, 75, 100), 1.42)]
+        for index in range(4):
+            self.assertIsNone(recovery.find_match(
+                self.frame, candidate, 0.6 + index * 0.05,
+            ))
+        self.assertEqual(recovery.find_match(self.frame, candidate, 0.8)[0], 17)
+
+    def test_new_id_with_changing_or_nearer_depth_stays_unselected(self):
+        recovery = self.make_recovery()
+        for index in range(8):
+            depth = 1.40 if index % 2 == 0 else 1.55
+            self.assertIsNone(recovery.find_match(
+                self.frame, [(17, (25, 20, 75, 100), depth)],
+                0.6 + index * 0.05,
+            ))
+        for index in range(8):
+            self.assertIsNone(recovery.find_match(
+                self.frame, [(17, (25, 20, 75, 100), 0.60)],
+                1.1 + index * 0.05,
+            ))
+
 
 if __name__ == "__main__":
     unittest.main()
